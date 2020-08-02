@@ -17,4 +17,4 @@ if you go through the effort to set this up on linux/mac please Pull-Request the
 
 # issues/notes
 
-* like with `JavaScript` functions will auto coerce to Consumer's, unlike `Jython` where you have to wrap functions.
+* like with `JavaScript` functions will auto coerce to `Consumer`'s, unlike `Jython` where you have to wrap functions.

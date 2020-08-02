@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "jsmacros-jep",
+  "version": "${version}",
+
+  "name": "JsMacros JEP",
+  "description": "JsMacros JEP Extension",
+  "authors": [
+    "WagYourTail"
+  ],
+  "contact": {
+    "homepage": "wagyourtail.xyz"
+  },
+
+  "license": "MIT",
+  "icon": "assets/modid/icon.png",
+
+  "environment": "*",
+  "entrypoints": {
+    "client": [
+      "xyz.wagyourtail.jsmacrosjep.JsMacrosJEP"
+    ]
+  },
+  "mixins": [
+  ],
+  "depends": {
+    "fabricloader": ">=0.7.4",
+    "minecraft": "*",
+    "jsmacros": "*"
+  }
+}

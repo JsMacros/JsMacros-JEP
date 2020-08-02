@@ -14,3 +14,15 @@ In order to use `JEP` you will need to install it using the guide for your OS on
 6. profit
 
 if you go through the effort to set this up on linux/mac please Pull-Request the steps or message @wagyourtail on the JsMacros discord
+
+# issues/notes
+
+consumers aren't automatically created from py functions so use:
+```python 
+from java.util.function import Consumer
+
+class jc(Consumer):
+    def __init__(self, fn):
+        self.accept=fn
+```
+same thing for BiConsumers basically.

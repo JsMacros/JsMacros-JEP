@@ -1,8 +1,6 @@
 plugins {
 	id 'fabric-loom' version '0.4-SNAPSHOT'
 	id 'maven-publish'
-	id 'java'
-	id "com.github.johnrengelman.shadow" version "6.0.0"
 }
 
 sourceCompatibility = JavaVersion.VERSION_1_8
@@ -24,15 +22,6 @@ repositories {
     maven { url 'https://jitpack.io' }
 }
 
-shadowJar {
-	dependencies {
-		exclude(dependency {
-			it.moduleGroup != 'org.python'
-		})
-	}
-  zip64 true
-}
-
 dependencies {
 	//to change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
@@ -47,13 +36,13 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-key-binding-api-v1:${project.key_bind_api_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-resource-loader-v0:${resource_loader_version}"
     
-    //early riser needed
-    //modCompile 'com.github.modmuss50:Fabric-ASM:b97939c03a'
-    //include 'com.github.modmuss50:Fabric-ASM:b97939c03a'
-    
-    
-	// https://mvnrepository.com/artifact/org.python/jython-standalone
-    implementation group: 'org.python', name: 'jython-standalone', version: '2.7.2'
+	
+	
+	//add JEP
+	implementation 'com.github.ninia:jep:v3.9.0'
+	include 'com.github.ninia:jep:v3.9.0'
+	
+	
 	
 	// https://mvnrepository.com/artifact/org.graalvm.js/js
 	implementation group: 'org.graalvm.sdk', name: 'graal-sdk', version: '20.1.0'
@@ -64,10 +53,6 @@ dependencies {
 	implementation group: 'org.graalvm.regex', name: 'regex', version: '20.1.0'
 	implementation group: 'com.ibm.icu', name: 'icu4j', version: '64.2'
 	
-	
-	//add JEP
-	implementation 'com.github.ninia:jep:v3.9.0'
-	include 'com.github.ninia:jep:v3.9.0'
 	
     //websocket 
     implementation "org.java-websocket:Java-WebSocket:1.5.1"

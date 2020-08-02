@@ -16,3 +16,5 @@ In order to use `JEP` you will need to install it using the guide for your OS on
 if you go through the effort to set this up on linux/mac please Pull-Request the steps or message @wagyourtail on the JsMacros discord
 
 # issues/notes
+
+* as with `JS` functions will coerce to Consumer's, unlike `Jython` where you have to wrap functions.

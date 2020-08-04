@@ -25,7 +25,11 @@ public class consumerFunctions extends Functions {
                 synchronizer s = new synchronizer();
                 try {
                     runQueue.put(() -> {
-                        c.accept(arg0);
+                        try {
+                            c.accept(arg0);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                         s.gainOwnershipAndNotifyAll();
                     });
                     s.gainOwnershipAndWait();
@@ -47,7 +51,11 @@ public class consumerFunctions extends Functions {
                 synchronizer s = new synchronizer();
                 try {
                     runQueue.put(() -> {
-                        c.accept(arg0, arg1);
+                        try {
+                            c.accept(arg0, arg1);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                         s.gainOwnershipAndNotifyAll();
                     });
                     s.gainOwnershipAndWait();

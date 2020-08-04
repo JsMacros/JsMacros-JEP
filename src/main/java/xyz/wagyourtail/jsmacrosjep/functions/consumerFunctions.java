@@ -19,12 +19,16 @@ public class consumerFunctions extends Functions {
     
     public Consumer<Object> toConsumer(Consumer<Object> c) {
         Consumer<Object> r = new Consumer<Object>() {
+            
             @Override
             public void accept(Object arg0) {
+                synchronizer s = new synchronizer();
                 try {
                     runQueue.put(() -> {
                         c.accept(arg0);
+                        s.gainOwnershipAndNotifyAll();
                     });
+                    s.gainOwnershipAndWait();
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -37,12 +41,16 @@ public class consumerFunctions extends Functions {
     
     public BiConsumer<Object, Object> toBiConsumer(BiConsumer<Object, Object> c) {
         BiConsumer<Object, Object> r = new BiConsumer<Object, Object>() {
+            
             @Override
             public void accept(Object arg0, Object arg1) {
+                synchronizer s = new synchronizer();
                 try {
                     runQueue.put(() -> {
                         c.accept(arg0, arg1);
+                        s.gainOwnershipAndNotifyAll();
                     });
+                    s.gainOwnershipAndWait();
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -55,6 +63,18 @@ public class consumerFunctions extends Functions {
     
     public void stop() {
         Thread.currentThread().interrupt();
+    }
+    
+    public static class synchronizer {
+        private boolean falseFlag = true;
+        public synchronized void gainOwnershipAndWait() throws InterruptedException {
+            while (falseFlag) this.wait();
+        }
+        
+        public synchronized void gainOwnershipAndNotifyAll() {
+            falseFlag = false;
+            this.notifyAll();
+        }
     }
 
 }

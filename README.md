@@ -17,4 +17,18 @@ if you go through the effort to set this up on linux/mac please Pull-Request the
 
 # issues/notes
 
-* like with `JavaScript` functions will auto coerce to `Consumer`'s, unlike `Jython` where you have to wrap functions.
+* Use the consumer wrappers to make JEP able to run consumers properly.
+* JEP expects each consumer to be run at least once and after they have all been run, will close, make sure to add a consumer to onClose (or in `draw2d` re-define the consumer for init at the bottom of the init function). you can also close the JEP instance early with `consumer.stop()`.
+
+
+## 1.0.1+
+
+### toConsumer(function) *1.0.1+*
+*Example:* `consumer.toConsumer(func)`
+
+### toBiConsumer(function) *1.0.1+*
+*Example:* `consumer.toBiConsumer(func)`
+
+### stop() *1.0.1+*
+*Example:* `consumer.stop()`
+

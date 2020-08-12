@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +22,6 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
 import xyz.wagyourtail.jsmacros.config.RawMacro;
 import xyz.wagyourtail.jsmacros.runscript.RunScript;
-import xyz.wagyourtail.jsmacros.runscript.RunScript.Language;
 import xyz.wagyourtail.jsmacros.runscript.functions.Functions;
 import xyz.wagyourtail.jsmacrosjep.functions.consumerFunctions;
 
@@ -76,7 +76,7 @@ public class JsMacrosJEP implements ClientModInitializer {
         }
         
         // register language
-        RunScript.addLanguage(new Language() {
+        RunScript.addLanguage(new RunScript.Language() {
             @Override
             public void exec(RawMacro macro, File file, String event, Map<String, Object> args) throws Exception {
                 try (SharedInterpreter interp = new SharedInterpreter()) {
@@ -108,6 +108,34 @@ public class JsMacrosJEP implements ClientModInitializer {
                 }
             }
 
+            @Override
+            public void exec(String script, Map<String, Object> globals, Path path) throws Exception {
+                try (SharedInterpreter interp = new SharedInterpreter()) {
+                    LinkedBlockingQueue<Runnable> taskQueue = new LinkedBlockingQueue<>();
+                    List<Object> remainingTasks = new ArrayList<>();
+                    
+                    for (Functions f : RunScript.standardLib) {
+                        if (!f.excludeLanguages.contains(".py")) {
+                            interp.set(f.libName, f);
+                        }
+                    }
+                    interp.set("consumer", new consumerFunctions("consumer", taskQueue, remainingTasks));
+                    
+                    if (globals != null) for (Map.Entry<String, Object> e : globals.entrySet()) {
+                        interp.set(e.getKey(), e.getValue());
+                    }
+
+                    interp.exec(script);
+                    try {
+                        while (remainingTasks.size() > 0) {
+                            taskQueue.take().run();
+                        }
+                    } catch (InterruptedException e) {}
+                } catch(Exception e) {
+                    throw e;
+                }
+            }
+            
             @Override
             public String extension() {
                 return ".py";

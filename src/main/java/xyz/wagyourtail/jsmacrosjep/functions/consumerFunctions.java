@@ -69,6 +69,52 @@ public class consumerFunctions extends Functions {
         return r;
     }
     
+    public Consumer<Object> toAsyncConsumer(Consumer<Object> c) {
+        Consumer<Object> r = new Consumer<Object>() {
+            
+            @Override
+            public void accept(Object arg0) {
+                try {
+                    runQueue.put(() -> {
+                        try {
+                            c.accept(arg0);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    });
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                preRun.remove(this);
+            }
+        };
+        preRun.add(r);
+        return r;
+    }
+    
+    public BiConsumer<Object, Object> toAsyncBiConsumer(BiConsumer<Object, Object> c) {
+        BiConsumer<Object, Object> r = new BiConsumer<Object, Object>() {
+            
+            @Override
+            public void accept(Object arg0, Object arg1) {
+                try {
+                    runQueue.put(() -> {
+                        try {
+                            c.accept(arg0, arg1);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    });
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                preRun.remove(this);
+            }
+        };
+        preRun.add(r);
+        return r;
+    }
+    
     public void stop() {
         Thread.currentThread().interrupt();
     }

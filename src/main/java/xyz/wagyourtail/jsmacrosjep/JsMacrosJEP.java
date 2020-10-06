@@ -20,10 +20,12 @@ import jep.JepException;
 import jep.SharedInterpreter;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
+import xyz.wagyourtail.jsmacros.api.sharedinterfaces.IEvent;
 import xyz.wagyourtail.jsmacros.config.RawMacro;
+import xyz.wagyourtail.jsmacros.extensionbase.Functions;
+import xyz.wagyourtail.jsmacros.extensionbase.ILanguage;
 import xyz.wagyourtail.jsmacros.runscript.RunScript;
-import xyz.wagyourtail.jsmacros.runscript.functions.Functions;
-import xyz.wagyourtail.jsmacrosjep.functions.consumerFunctions;
+import xyz.wagyourtail.jsmacrosjep.functions.FConsumerJEP;
 
 public class JsMacrosJEP implements ClientModInitializer {
     private Gson gson = new GsonBuilder().setPrettyPrinting().create();
@@ -76,15 +78,14 @@ public class JsMacrosJEP implements ClientModInitializer {
         }
         
         // register language
-        RunScript.addLanguage(new RunScript.Language() {
+        RunScript.addLanguage(new ILanguage() {
             @Override
-            public void exec(RawMacro macro, File file, String event, Map<String, Object> args) throws Exception {
+            public void exec(RawMacro macro, File file, IEvent event) throws Exception {
                 try (SharedInterpreter interp = new SharedInterpreter()) {
                     LinkedBlockingQueue<Runnable> taskQueue = new LinkedBlockingQueue<>();
                     List<Object> remainingTasks = new ArrayList<>();
                     
                     interp.set("event", (Object) event);
-                    interp.set("args", args);
                     interp.set("file", file);
                     
                     for (Functions f : RunScript.standardLib) {
@@ -93,7 +94,7 @@ public class JsMacrosJEP implements ClientModInitializer {
                         }
                     }
 
-                    interp.set("consumer", new consumerFunctions("consumer", taskQueue, remainingTasks));
+                    interp.set("consumer", new FConsumerJEP("consumer", taskQueue, remainingTasks));
                     
                     interp.exec("import os\nos.chdir('"
                         + file.getParentFile().getCanonicalPath().replaceAll("\\\\", "/") + "')");
@@ -119,7 +120,7 @@ public class JsMacrosJEP implements ClientModInitializer {
                             interp.set(f.libName, f);
                         }
                     }
-                    interp.set("consumer", new consumerFunctions("consumer", taskQueue, remainingTasks));
+                    interp.set("consumer", new FConsumerJEP("consumer", taskQueue, remainingTasks));
                     
                     if (globals != null) for (Map.Entry<String, Object> e : globals.entrySet()) {
                         interp.set(e.getKey(), e.getValue());

@@ -6,25 +6,25 @@
   "name": "JsMacros JEP",
   "description": "JsMacros JEP Extension",
   "authors": [
-    "WagYourTail"
+    "Wagyourtail"
   ],
   "contact": {
-    "homepage": "wagyourtail.xyz"
+    "homepage": "jsmacros.wagyourtail.xyz"
   },
 
   "license": "MIT",
-  "icon": "assets/jsmacrosjep/icon.png",
+  "icon": "assets/jsmacrosjep/logo.png",
 
   "environment": "*",
   "entrypoints": {
     "client": [
-      "xyz.wagyourtail.jsmacrosjep.JsMacrosJEP"
+      "xyz.wagyourtail.jsmacros.jep.client.JsMacrosJEP"
     ]
   },
   "mixins": [
   ],
   "depends": {
-    "fabricloader": ">=0.7.4",
+    "fabricloader": ">=0.9.0",
     "minecraft": "*",
     "jsmacros": "*"
   },

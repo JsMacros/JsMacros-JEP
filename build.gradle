@@ -28,7 +28,7 @@ dependencies {
 	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	
-	modImplementation name: "jsmacros-1.16.4-1.2.8-dev"
+	modImplementation name: "jsmacros-1.16.4-1.2.9-beta-d39b399-dev"
 	
 	//partial fabric api
 	modImplementation "net.fabricmc.fabric-api:fabric-api-base:${project.api_base_version}"
@@ -41,9 +41,12 @@ dependencies {
 	//add JEP
 	implementation 'com.github.ninia:jep:v3.9.0'
 	include 'com.github.ninia:jep:v3.9.0'
-	
-	
-	
+
+
+	implementation "io.noties:prism4j:${prism_version}"
+	include "io.noties:prism4j:${prism_version}"
+
+
 	// https://mvnrepository.com/artifact/org.graalvm.js/js
 	implementation group: 'org.graalvm.sdk', name: 'graal-sdk', version: '20.1.0'
 	implementation group: 'org.graalvm.js', name: 'js', version: '20.1.0'
@@ -54,9 +57,7 @@ dependencies {
 	implementation group: 'com.ibm.icu', name: 'icu4j', version: '64.2'
 	
 	
-    //websocket 
-    implementation "org.java-websocket:Java-WebSocket:1.5.1"
-    implementation group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
+    //websocket
     implementation "com.neovisionaries:nv-websocket-client:2.10"
     
 	//nullable not defined so...

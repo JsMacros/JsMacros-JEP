@@ -44,7 +44,6 @@ dependencies {
 
 
 	implementation "io.noties:prism4j:${prism_version}"
-	include "io.noties:prism4j:${prism_version}"
 
 
 	// https://mvnrepository.com/artifact/org.graalvm.js/js

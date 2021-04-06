@@ -1,7 +1,5 @@
 package xyz.wagyourtail.jsmacros.jep.client;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import jep.JepConfig;
 import jep.JepException;
 import jep.SharedInterpreter;
@@ -9,19 +7,14 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
 import org.apache.commons.io.FileUtils;
 import xyz.wagyourtail.jsmacros.client.JsMacros;
-import xyz.wagyourtail.jsmacros.core.Core;
+import xyz.wagyourtail.jsmacros.jep.config.JEPConfig;
 import xyz.wagyourtail.jsmacros.jep.language.impl.JEPLanguageDefinition;
-import xyz.wagyourtail.jsmacros.jep.library.impl.FConsumerJEP;
+import xyz.wagyourtail.jsmacros.jep.library.impl.FWrapper;
 
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 
 public class JsMacrosJEP implements ClientModInitializer {
-    private Gson gson = new GsonBuilder().setPrettyPrinting().create();
-    public File configFolder = new File(FabricLoader.getInstance().getConfigDirectory(), "jsMacros");
-    public File configFile = new File(configFolder, "jep-options.json");
     
     @Override
     public void onInitializeClient() {
@@ -29,37 +22,20 @@ public class JsMacrosJEP implements ClientModInitializer {
             JepConfig c = new JepConfig();
             c.setRedirectOutputStreams(true);
             SharedInterpreter.setConfig(c);
-        } catch (JepException e) {}
-        
-        
-        Options options = new Options("./jep.dll");
+        } catch (JepException e) {
+            e.printStackTrace();
+        }
+    
         try {
-            options = gson.fromJson(new FileReader(configFile), Options.class);
-        } catch (Exception e) {
-            try (FileWriter fw = new FileWriter(configFile)) {
-                fw.write(gson.toJson(options));
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            }
+            JsMacros.core.config.addOptions("jep", JEPConfig.class);
+        } catch (IllegalAccessException | InstantiationException e) {
+            throw new RuntimeException(e);
         }
-        
-        if (options.JEPSharedLibraryPath == null) options.JEPSharedLibraryPath = "./jep.dll";
-        
-        File f = new File(FabricLoader.getInstance().getGameDirectory(), options.JEPSharedLibraryPath);
-        if (f.exists()) {
-            File fo = new File(System.getProperty("java.library.path"), f.getName());
-            if (!fo.exists()) {
-                try {
-                    FileUtils.copyFile(f, fo);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
+        addSharedLibrary(JsMacros.core.config.getOptions(JEPConfig.class).path);
     
         JsMacros.core.addLanguage(new JEPLanguageDefinition(".py", JsMacros.core));
         JsMacros.core.sortLanguages();
-        JsMacros.core.libraryRegistry.addLibrary(FConsumerJEP.class);
+        JsMacros.core.libraryRegistry.addLibrary(FWrapper.class);
         
         // pre-init
         Thread t = new Thread(() -> {
@@ -72,11 +48,18 @@ public class JsMacrosJEP implements ClientModInitializer {
         
         t.start();
     }
-
-    public static class Options {
-        public String JEPSharedLibraryPath;
-        public Options(String JEPSharedLibraryPath) {
-            this.JEPSharedLibraryPath = JEPSharedLibraryPath;
+    
+    public static void addSharedLibrary(String path) {
+        File f = new File(FabricLoader.getInstance().getGameDirectory(), path);
+        if (f.exists()) {
+            File fo = new File(System.getProperty("java.library.path"), f.getName());
+            if (!fo.exists()) {
+                try {
+                    FileUtils.copyFile(f, fo);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
         }
     }
 }

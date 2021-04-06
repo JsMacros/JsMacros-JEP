@@ -1,47 +1,30 @@
 package xyz.wagyourtail.jsmacros.jep.library.impl;
 
+import jep.SharedInterpreter;
 import jep.python.PyCallable;
 import xyz.wagyourtail.jsmacros.core.MethodWrapper;
 import xyz.wagyourtail.jsmacros.core.language.BaseLanguage;
+import xyz.wagyourtail.jsmacros.core.language.ContextContainer;
+import xyz.wagyourtail.jsmacros.core.library.IFWrapper;
 import xyz.wagyourtail.jsmacros.jep.language.impl.JEPLanguageDefinition;
-import xyz.wagyourtail.jsmacros.core.library.IFConsumer;
 import xyz.wagyourtail.jsmacros.core.library.Library;
 import xyz.wagyourtail.jsmacros.core.library.PerExecLanguageLibrary;
+import xyz.wagyourtail.jsmacros.jep.language.impl.JEPScriptContext;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-@Library(value = "consumer", languages = JEPLanguageDefinition.class)
-public class FConsumerJEP extends PerExecLanguageLibrary<IFConsumer> implements IFConsumer<PyCallable, PyCallable, PyCallable> {
+@Library(value = "JavaWrapper", languages = JEPLanguageDefinition.class)
+public class FWrapper extends PerExecLanguageLibrary<SharedInterpreter> implements IFWrapper<PyCallable> {
     private boolean first = true;
     
-    public FConsumerJEP(Class<? extends BaseLanguage> language, Object context, Thread thread) {
-        super(language, context, thread);
+    public FWrapper(ContextContainer<SharedInterpreter> context, Class<? extends BaseLanguage<SharedInterpreter>> language) {
+        super(context, language);
     }
     
     @Override
-    public <A, B, R> MethodWrapper<A, B, R> toConsumer(PyCallable c) {
-        return autoWrap(c);
-    }
-    
-    @Override
-    public <A, B, R> MethodWrapper<A, B, R> toBiConsumer(PyCallable c) {
-        return autoWrap(c);
-    }
-    
-    @Override
-    public <A, B, R> MethodWrapper<A, B, R> toAsyncConsumer(PyCallable c) {
-        return autoWrapAsync(c);
-    }
-    
-    @Override
-    public <A, B, R> MethodWrapper<A, B, R> toAsyncBiConsumer(PyCallable c) {
-        return autoWrapAsync(c);
-    }
-    
-    @Override
-    public <A, B, R> MethodWrapper<A, B, R> autoWrap(PyCallable c) {
+    public <A, B, R> MethodWrapper<A, B, R> methodToJava(PyCallable c) {
         if (first) {
-            JEPLanguageDefinition.stopped.put(thread, false);
+            ((JEPScriptContext)ctx.getCtx()).doLoop = true;
             first = false;
         }
         return new MethodWrapper<A, B, R>() {
@@ -52,7 +35,7 @@ public class FConsumerJEP extends PerExecLanguageLibrary<IFConsumer> implements 
                 AtomicReference<R> retval = new AtomicReference<>();
                 
                 try {
-                    JEPLanguageDefinition.taskQueue.get(thread).put(() -> {
+                    ((JEPScriptContext)ctx.getCtx()).taskQueue.put(() -> {
                         try {
                             retval.set((R) c.call());
                         } catch (Exception e) {
@@ -78,7 +61,7 @@ public class FConsumerJEP extends PerExecLanguageLibrary<IFConsumer> implements 
                 Synchronizer s = new Synchronizer();
                 
                 try {
-                    JEPLanguageDefinition.taskQueue.get(thread).put(() -> {
+                    ((JEPScriptContext)ctx.getCtx()).taskQueue.put(() -> {
                         try {
                             c.call();
                         } catch (Exception e) {
@@ -97,7 +80,7 @@ public class FConsumerJEP extends PerExecLanguageLibrary<IFConsumer> implements 
                 Synchronizer s = new Synchronizer();
     
                 try {
-                    JEPLanguageDefinition.taskQueue.get(thread).put(() -> {
+                    ((JEPScriptContext)ctx.getCtx()).taskQueue.put(() -> {
                         try {
                             c.call(a);
                         } catch (Exception e) {
@@ -116,7 +99,7 @@ public class FConsumerJEP extends PerExecLanguageLibrary<IFConsumer> implements 
                 Synchronizer s = new Synchronizer();
     
                 try {
-                    JEPLanguageDefinition.taskQueue.get(thread).put(() -> {
+                    ((JEPScriptContext)ctx.getCtx()).taskQueue.put(() -> {
                         try {
                             c.call(a, b);
                         } catch (Exception e) {
@@ -136,7 +119,7 @@ public class FConsumerJEP extends PerExecLanguageLibrary<IFConsumer> implements 
                 AtomicReference<R> retval = new AtomicReference<>();
     
                 try {
-                    JEPLanguageDefinition.taskQueue.get(thread).put(() -> {
+                    ((JEPScriptContext)ctx.getCtx()).taskQueue.put(() -> {
                         try {
                             retval.set((R) c.call(a));
                         } catch (Exception e) {
@@ -158,7 +141,7 @@ public class FConsumerJEP extends PerExecLanguageLibrary<IFConsumer> implements 
                 AtomicReference<R> retval = new AtomicReference<>();
     
                 try {
-                    JEPLanguageDefinition.taskQueue.get(thread).put(() -> {
+                    ((JEPScriptContext)ctx.getCtx()).taskQueue.put(() -> {
                         try {
                             retval.set((R) c.call(a, b));
                         } catch (Exception e) {
@@ -187,9 +170,9 @@ public class FConsumerJEP extends PerExecLanguageLibrary<IFConsumer> implements 
     }
     
     @Override
-    public <A, B, R> MethodWrapper<A, B, R> autoWrapAsync(PyCallable c) {
+    public <A, B, R> MethodWrapper<A, B, R> methodToJavaAsync(PyCallable c) {
         if (first) {
-            JEPLanguageDefinition.stopped.put(thread, false);
+            ((JEPScriptContext)ctx.getCtx()).doLoop = true;
             first = false;
         }
         return new MethodWrapper<A, B, R>() {
@@ -200,7 +183,7 @@ public class FConsumerJEP extends PerExecLanguageLibrary<IFConsumer> implements 
                 AtomicReference<R> retval = new AtomicReference<>();
             
                 try {
-                    JEPLanguageDefinition.taskQueue.get(thread).put(() -> {
+                    ((JEPScriptContext)ctx.getCtx()).taskQueue.put(() -> {
                         try {
                             retval.set((R) c.call());
                         } catch (Exception e) {
@@ -224,7 +207,7 @@ public class FConsumerJEP extends PerExecLanguageLibrary<IFConsumer> implements 
             @Override
             public void run() {
                 try {
-                    JEPLanguageDefinition.taskQueue.get(thread).put(() -> {
+                    ((JEPScriptContext)ctx.getCtx()).taskQueue.put(() -> {
                         try {
                             c.call();
                         } catch (Exception e) {
@@ -239,7 +222,7 @@ public class FConsumerJEP extends PerExecLanguageLibrary<IFConsumer> implements 
             @Override
             public void accept(A a) {
                 try {
-                    JEPLanguageDefinition.taskQueue.get(thread).put(() -> {
+                    ((JEPScriptContext)ctx.getCtx()).taskQueue.put(() -> {
                         try {
                             c.call(a);
                         } catch (Exception e) {
@@ -254,7 +237,7 @@ public class FConsumerJEP extends PerExecLanguageLibrary<IFConsumer> implements 
             @Override
             public void accept(A a, B b) {
                 try {
-                    JEPLanguageDefinition.taskQueue.get(thread).put(() -> {
+                    ((JEPScriptContext)ctx.getCtx()).taskQueue.put(() -> {
                         try {
                             c.call(a, b);
                         } catch (Exception e) {
@@ -272,7 +255,7 @@ public class FConsumerJEP extends PerExecLanguageLibrary<IFConsumer> implements 
                 AtomicReference<R> retval = new AtomicReference<>();
             
                 try {
-                    JEPLanguageDefinition.taskQueue.get(thread).put(() -> {
+                    ((JEPScriptContext)ctx.getCtx()).taskQueue.put(() -> {
                         try {
                             retval.set((R) c.call(a));
                         } catch (Exception e) {
@@ -294,7 +277,7 @@ public class FConsumerJEP extends PerExecLanguageLibrary<IFConsumer> implements 
                 AtomicReference<R> retval = new AtomicReference<>();
             
                 try {
-                    JEPLanguageDefinition.taskQueue.get(thread).put(() -> {
+                    ((JEPScriptContext)ctx.getCtx()).taskQueue.put(() -> {
                         try {
                             retval.set((R) c.call(a, b));
                         } catch (Exception e) {
@@ -324,7 +307,7 @@ public class FConsumerJEP extends PerExecLanguageLibrary<IFConsumer> implements 
     
     @Override
     public void stop() {
-        JEPLanguageDefinition.stopped.put(thread, true);
+        ctx.getCtx().closeContext();
     }
     
     protected static class Synchronizer {

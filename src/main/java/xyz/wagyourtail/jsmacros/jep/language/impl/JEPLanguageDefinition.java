@@ -31,6 +31,7 @@ public class JEPLanguageDefinition extends BaseLanguage<SharedInterpreter> {
             for (Map.Entry<String, BaseLibrary> lib : retrieveLibs(ctx).entrySet()) interp.set(lib.getKey(), lib.getValue());
         
             exec.accept(interp);
+            ctx.releaseLock();
             
             if (!((JEPScriptContext) ctx.getCtx()).doLoop) return;
             try {

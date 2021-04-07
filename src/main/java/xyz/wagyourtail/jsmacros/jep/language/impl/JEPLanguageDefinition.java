@@ -24,10 +24,10 @@ public class JEPLanguageDefinition extends BaseLanguage<SharedInterpreter> {
     }
     
     protected void execContext(ContextContainer<SharedInterpreter> ctx, Executor exec) throws Exception {
+        BlockingQueue<Runnable> taskQueue = ((JEPScriptContext) ctx.getCtx()).taskQueue;
         try (SharedInterpreter interp = new SharedInterpreter()) {
             ctx.getCtx().setContext(interp);
             
-            BlockingQueue<Runnable> taskQueue = ((JEPScriptContext) ctx.getCtx()).taskQueue;
             for (Map.Entry<String, BaseLibrary> lib : retrieveLibs(ctx).entrySet()) interp.set(lib.getKey(), lib.getValue());
         
             exec.accept(interp);
@@ -40,6 +40,7 @@ public class JEPLanguageDefinition extends BaseLanguage<SharedInterpreter> {
                 }
             } catch (InterruptedException ignored) {}
         }
+        taskQueue.forEach(Runnable::run);
     }
     
     @Override

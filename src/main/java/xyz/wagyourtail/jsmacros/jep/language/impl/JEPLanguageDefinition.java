@@ -32,15 +32,13 @@ public class JEPLanguageDefinition extends BaseLanguage<SharedInterpreter> {
         
             exec.accept(interp);
             ctx.releaseLock();
-            
-            if (!((JEPScriptContext) ctx.getCtx()).doLoop) return;
+
             try {
-                while (!((JEPScriptContext) ctx.getCtx()).closed) {
+                while (!((JEPScriptContext) ctx.getCtx()).closed && ((JEPScriptContext) ctx.getCtx()).nonGCdMethodWrappers.get() > 0) {
                     taskQueue.take().run();
                 }
             } catch (InterruptedException ignored) {}
         }
-        taskQueue.forEach(Runnable::run);
     }
     
     @Override
@@ -69,8 +67,8 @@ public class JEPLanguageDefinition extends BaseLanguage<SharedInterpreter> {
     }
     
     @Override
-    public ScriptContext<SharedInterpreter> createContext() {
-        return new JEPScriptContext();
+    public ScriptContext<SharedInterpreter> createContext(BaseEvent event) {
+        return new JEPScriptContext(event);
     }
     
     @Override

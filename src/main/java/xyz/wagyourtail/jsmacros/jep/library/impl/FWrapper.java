@@ -3,6 +3,7 @@ package xyz.wagyourtail.jsmacros.jep.library.impl;
 import jep.JepException;
 import jep.SharedInterpreter;
 import jep.python.PyCallable;
+import xyz.wagyourtail.jsmacros.core.Core;
 import xyz.wagyourtail.jsmacros.core.MethodWrapper;
 import xyz.wagyourtail.jsmacros.core.language.BaseLanguage;
 import xyz.wagyourtail.jsmacros.core.language.ContextContainer;
@@ -71,11 +72,16 @@ public class FWrapper extends PerExecLanguageLibrary<SharedInterpreter> implemen
                 return;
             }
 
+            Thread callingThread = Thread.currentThread() == ctx.getCtx().getMainThread().get() ? null : Thread.currentThread();
+
             ((JEPScriptContext)ctx.getCtx()).taskQueue.put(() -> {
                 try {
                     accepted.run();
                 } catch (JepException e) {
                     error[0] = e;
+                } finally {
+                    ContextContainer<?> cc = Core.instance.eventContexts.get(callingThread);
+                    if (cc != null) cc.releaseLock();
                 }
                 lock.release();
             });

@@ -6,7 +6,7 @@ import jep.python.PyCallable;
 import xyz.wagyourtail.jsmacros.core.Core;
 import xyz.wagyourtail.jsmacros.core.MethodWrapper;
 import xyz.wagyourtail.jsmacros.core.language.BaseLanguage;
-import xyz.wagyourtail.jsmacros.core.language.ContextContainer;
+import xyz.wagyourtail.jsmacros.core.language.BaseScriptContext;
 import xyz.wagyourtail.jsmacros.core.library.IFWrapper;
 import xyz.wagyourtail.jsmacros.core.library.Library;
 import xyz.wagyourtail.jsmacros.core.library.PerExecLanguageLibrary;
@@ -19,51 +19,49 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Library(value = "JavaWrapper", languages = JEPLanguageDefinition.class)
 public class FWrapper extends PerExecLanguageLibrary<SharedInterpreter> implements IFWrapper<PyCallable> {
     
-    public FWrapper(ContextContainer<SharedInterpreter> context, Class<? extends BaseLanguage<SharedInterpreter>> language) {
+    public FWrapper(BaseScriptContext<SharedInterpreter> context, Class<? extends BaseLanguage<SharedInterpreter>> language) {
         super(context, language);
     }
     
     @Override
-    public <A, B, R> MethodWrapper<A, B, R> methodToJava(PyCallable c) {
-        ((JEPScriptContext) ctx.getCtx()).nonGCdMethodWrappers.incrementAndGet();
-        return new JEPMethodWrapper<>(c, true);
+    public <A, B, R> MethodWrapper<A, B, R, ?> methodToJava(PyCallable c) {
+        return new JEPMethodWrapper<>(ctx, c, true);
     }
     
     @Override
-    public <A, B, R> MethodWrapper<A, B, R> methodToJavaAsync(PyCallable c) {
-        return new JEPMethodWrapper<>(c, false);
+    public <A, B, R> MethodWrapper<A, B, R, ?> methodToJavaAsync(PyCallable c) {
+        return new JEPMethodWrapper<>(ctx, c, false);
     }
     
     @Override
     public void stop() {
-        ctx.getCtx().closeContext();
+        ctx.closeContext();
     }
 
     public void deferCurrentTask() throws InterruptedException {
         AtomicBoolean lock = new AtomicBoolean(true);
 
-        ((JEPScriptContext)ctx.getCtx()).taskQueue.put(() -> lock.set(false));
+        ((JEPScriptContext)ctx).taskQueue.put(() -> lock.set(false));
 
         while (lock.get()) {
-            ((JEPScriptContext)ctx.getCtx()).taskQueue.poll().run();
+            ((JEPScriptContext)ctx).taskQueue.poll().run();
         }
     }
 
-    private class JEPMethodWrapper<T, U, R> extends MethodWrapper<T, U, R> {
+    private static class JEPMethodWrapper<T, U, R> extends MethodWrapper<T, U, R, BaseScriptContext<SharedInterpreter>> {
         private final PyCallable fn;
         private final boolean await;
 
-        private JEPMethodWrapper(PyCallable fn, boolean await) {
+        private JEPMethodWrapper(BaseScriptContext<SharedInterpreter> ctx, PyCallable fn, boolean await) {
+            super(ctx);
             this.fn = fn;
             this.await = await;
         }
 
         private void inner_accept(RunnableEx accepted, boolean await) throws InterruptedException {
-            Throwable[] error = {null};
-            Semaphore lock = new Semaphore(0);
 
-            // if in the same lua context and not async...
-            if (await && ctx.getCtx().getMainThread().get() == Thread.currentThread()) {
+            // if in the same JEP context and not async...
+            if (await && ctx.getMainThread() == Thread.currentThread()) {
                 try {
                     accepted.run();
                 } catch (JepException e) {
@@ -72,25 +70,32 @@ public class FWrapper extends PerExecLanguageLibrary<SharedInterpreter> implemen
                 return;
             }
 
-            Thread callingThread = Thread.currentThread() == ctx.getCtx().getMainThread().get() ? null : Thread.currentThread();
+            Throwable[] error = {null};
+            Semaphore lock = new Semaphore(0);
 
-            ((JEPScriptContext)ctx.getCtx()).taskQueue.put(() -> {
+            Thread callingThread = Thread.currentThread();
+
+            ((JEPScriptContext)ctx).taskQueue.put(() -> {
                 try {
                     accepted.run();
                 } catch (JepException e) {
                     error[0] = e;
                 } finally {
-                    ContextContainer<?> cc = Core.instance.eventContexts.get(callingThread);
-                    if (cc != null) cc.releaseLock();
+                    ctx.releaseBoundEventIfPresent(callingThread);
                 }
                 lock.release();
             });
 
             if (await) {
                 try {
+                    if (Core.instance.profile.checkJoinedThreadStack()) {
+                        Core.instance.profile.joinedThreadStack.add(ctx.getMainThread());
+                    }
                     lock.acquire();
                 } catch (InterruptedException ex) {
                     throw new RuntimeException(ex);
+                } finally {
+                    Core.instance.profile.joinedThreadStack.remove(ctx.getMainThread());
                 }
                 if (error[0] != null) throw new RuntimeException(error[0]);
             }
@@ -188,13 +193,6 @@ public class FWrapper extends PerExecLanguageLibrary<SharedInterpreter> implemen
             }
             return (R) retval[0];
         }
-
-        @Override
-        protected void finalize() throws Throwable {
-            int val = ((JEPScriptContext) ctx.getCtx()).nonGCdMethodWrappers.decrementAndGet();
-            if (val == 0) ctx.getCtx().closeContext();
-        }
-
     }
 
     interface RunnableEx {

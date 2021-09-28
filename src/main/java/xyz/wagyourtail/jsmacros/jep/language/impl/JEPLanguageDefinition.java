@@ -6,57 +6,64 @@ import xyz.wagyourtail.jsmacros.core.Core;
 import xyz.wagyourtail.jsmacros.core.config.ScriptTrigger;
 import xyz.wagyourtail.jsmacros.core.event.BaseEvent;
 import xyz.wagyourtail.jsmacros.core.language.BaseLanguage;
+import xyz.wagyourtail.jsmacros.core.language.BaseScriptContext;
 import xyz.wagyourtail.jsmacros.core.language.BaseWrappedException;
-import xyz.wagyourtail.jsmacros.core.language.ContextContainer;
-import xyz.wagyourtail.jsmacros.core.language.ScriptContext;
+import xyz.wagyourtail.jsmacros.core.language.EventContainer;
 import xyz.wagyourtail.jsmacros.core.library.BaseLibrary;
 
 import java.io.File;
-import java.nio.file.Path;
+import java.lang.ref.WeakReference;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 public class JEPLanguageDefinition extends BaseLanguage<SharedInterpreter> {
     public JEPLanguageDefinition(String extension, Core runner) {
         super(extension, runner);
     }
     
-    protected void execContext(ContextContainer<SharedInterpreter> ctx, Executor exec) throws Exception {
-        BlockingQueue<Runnable> taskQueue = ((JEPScriptContext) ctx.getCtx()).taskQueue;
+    protected void execContext(BaseScriptContext<SharedInterpreter> ctx, Executor exec) throws Exception {
+        BlockingQueue<Runnable> taskQueue = ((JEPScriptContext) ctx).taskQueue;
         try (SharedInterpreter interp = new SharedInterpreter()) {
-            ctx.getCtx().setContext(interp);
+            ctx.setContext(interp);
             
             for (Map.Entry<String, BaseLibrary> lib : retrieveLibs(ctx).entrySet()) interp.set(lib.getKey(), lib.getValue());
         
             exec.accept(interp);
-            ctx.releaseLock();
+            ctx.releaseBoundEventIfPresent(Thread.currentThread());
 
             try {
-                while (!((JEPScriptContext) ctx.getCtx()).closed && ((JEPScriptContext) ctx.getCtx()).nonGCdMethodWrappers.get() > 0) {
-                    taskQueue.take().run();
+                //clear the sync object earlier since we're still using the thread for the {@link Runnable}s
+                ctx.clearSyncObject();
+                while (!ctx.isContextClosed()) {
+                    taskQueue.poll(5000, TimeUnit.MILLISECONDS).run();
                 }
-            } catch (InterruptedException ignored) {}
+            } catch (InterruptedException | NullPointerException ignored) {
+            } finally {
+                ctx.closeContext();
+                interp.close();
+            }
         }
     }
     
     @Override
-    protected void exec(ContextContainer<SharedInterpreter> ctx, ScriptTrigger macro, File file, BaseEvent event) throws Exception {
-        execContext(ctx, (interp) -> {
+    protected void exec(EventContainer<SharedInterpreter> ctx, ScriptTrigger macro, BaseEvent event) throws Exception {
+        execContext(ctx.getCtx(), (interp) -> {
             interp.set("event", event);
-            interp.set("file", file);
+            interp.set("file", ctx.getCtx().getFile());
             interp.set("context", ctx);
-            
-            interp.exec("import os\nos.chdir('"
-                + file.getParentFile().getCanonicalPath().replaceAll("\\\\", "/") + "')");
-            interp.runScript(file.getCanonicalPath());
+
+            if (ctx.getCtx().getFile() != null)
+                interp.exec("import os\nos.chdir('" + ctx.getCtx().getFile().getParentFile().getCanonicalPath().replaceAll("\\\\", "/") + "')");
+            interp.runScript(ctx.getCtx().getFile().getCanonicalPath());
         });
     }
     
     @Override
-    protected void exec(ContextContainer<SharedInterpreter> ctx, String script, Map<String, Object> globals, Path path) throws Exception {
-        execContext(ctx, (interp) -> {
+    protected void exec(EventContainer<SharedInterpreter> ctx, String script, Map<String, Object> globals) throws Exception {
+        execContext(ctx.getCtx(), (interp) -> {
             if (globals != null) for (Map.Entry<String, Object> e : globals.entrySet()) {
                 interp.set(e.getKey(), e.getValue());
             }
@@ -67,8 +74,8 @@ public class JEPLanguageDefinition extends BaseLanguage<SharedInterpreter> {
     }
     
     @Override
-    public ScriptContext<SharedInterpreter> createContext(BaseEvent event) {
-        return new JEPScriptContext(event);
+    public BaseScriptContext<SharedInterpreter> createContext(BaseEvent event, File file) {
+        return new JEPScriptContext(event, file);
     }
     
     @Override

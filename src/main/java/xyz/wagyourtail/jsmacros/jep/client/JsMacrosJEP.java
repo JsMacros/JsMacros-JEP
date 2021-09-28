@@ -20,7 +20,8 @@ public class JsMacrosJEP implements ClientModInitializer {
     public void onInitializeClient() {
         try {
             JepConfig c = new JepConfig();
-            c.setRedirectOutputStreams(true);
+            c.redirectStdout(System.out);
+            c.redirectStdErr(System.err);
             SharedInterpreter.setConfig(c);
         } catch (JepException e) {
             e.printStackTrace();
@@ -34,7 +35,6 @@ public class JsMacrosJEP implements ClientModInitializer {
         addSharedLibrary(JsMacros.core.config.getOptions(JEPConfig.class).path);
     
         JsMacros.core.addLanguage(new JEPLanguageDefinition(".py", JsMacros.core));
-        JsMacros.core.sortLanguages();
         JsMacros.core.libraryRegistry.addLibrary(FWrapper.class);
         
         // pre-init

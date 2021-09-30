@@ -51,53 +51,66 @@ public class FWrapper extends PerExecLanguageLibrary<SharedInterpreter> implemen
     private static class JEPMethodWrapper<T, U, R> extends MethodWrapper<T, U, R, BaseScriptContext<SharedInterpreter>> {
         private final PyCallable fn;
         private final boolean await;
+        private final Thread overrideThread;
 
         private JEPMethodWrapper(BaseScriptContext<SharedInterpreter> ctx, PyCallable fn, boolean await) {
             super(ctx);
             this.fn = fn;
             this.await = await;
+            this.overrideThread = ctx.getMainThread();
+        }
+
+        @Override
+        public Thread overrideThread() {
+            return overrideThread;
         }
 
         private void inner_accept(RunnableEx accepted, boolean await) throws InterruptedException {
 
             // if in the same JEP context and not async...
-            if (await && ctx.getMainThread() == Thread.currentThread()) {
-                try {
-                    accepted.run();
-                } catch (JepException e) {
-                    throw new RuntimeException(e);
+            if (await) {
+                if (ctx.getMainThread() == Thread.currentThread()) {
+                    try {
+                        accepted.run();
+                    } catch (JepException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return;
                 }
-                return;
+
+                ctx.bindThread(Thread.currentThread());
             }
 
             Throwable[] error = {null};
             Semaphore lock = new Semaphore(0);
 
             Thread callingThread = Thread.currentThread();
+            boolean joinedThread = Core.instance.profile.checkJoinedThreadStack();
 
             ((JEPScriptContext)ctx).taskQueue.put(() -> {
                 try {
+                    if (joinedThread) {
+                        Core.instance.profile.joinedThreadStack.add(overrideThread);
+                    }
                     accepted.run();
                 } catch (JepException e) {
                     error[0] = e;
                 } finally {
-                    ctx.releaseBoundEventIfPresent(callingThread);
+                    Core.instance.profile.joinedThreadStack.remove(overrideThread);
+
+                    ctx.releaseBoundEventIfPresent(overrideThread);
+
+                    lock.release();
                 }
-                lock.release();
             });
 
             if (await) {
                 try {
-                    if (Core.instance.profile.checkJoinedThreadStack()) {
-                        Core.instance.profile.joinedThreadStack.add(ctx.getMainThread());
-                    }
                     lock.acquire();
-                } catch (InterruptedException ex) {
-                    throw new RuntimeException(ex);
+                    if (error[0] != null) throw new RuntimeException(error[0]);
                 } finally {
-                    Core.instance.profile.joinedThreadStack.remove(ctx.getMainThread());
+                    ctx.unbindThread(Thread.currentThread());
                 }
-                if (error[0] != null) throw new RuntimeException(error[0]);
             }
         }
 

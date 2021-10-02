@@ -89,7 +89,7 @@ public class FWrapper extends PerExecLanguageLibrary<SharedInterpreter> implemen
 
             ((JEPScriptContext)ctx).taskQueue.put(() -> {
                 try {
-                    if (joinedThread) {
+                    if (await && joinedThread) {
                         Core.instance.profile.joinedThreadStack.add(overrideThread);
                     }
                     accepted.run();

@@ -41,7 +41,7 @@ dependencies {
 	modImplementation "net.fabricmc.fabric-api:fabric-command-api-v1:${project.command_api_version}"
 
 
-	modImplementation "com.github.wagyourtail:JsMacros:${project.jsmacros_version}"
+	modImplementation "com.github.wagyourtail:jsmacros:${project.jsmacros_version}"
 
 	implementation "org.graalvm.sdk:graal-sdk:${project.graal_version}"
 	implementation "org.graalvm.js:js:${project.graal_version}"

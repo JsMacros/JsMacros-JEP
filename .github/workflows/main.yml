@@ -57,7 +57,7 @@ jobs:
           file_path: ./build/libs/${{ steps.fname.outputs.result }}.jar
           changelog: See the github release for changes.
           display_name: ${{ steps.fname.outputs.result }}
-          game_versions: 70886:1.16.4,70886:1.16.3,70886:1.16.2,68722:1.15.2,64806:1.14.4,2:Java 8,68441:Fabric
+          game_versions: 73250:1.18.1,73250:1.18,73242:1.17.1,70886:1.16.4,70886:1.16.3,70886:1.16.2,68722:1.15.2,64806:1.14.4,2:Java 17,2:Java 16,2:Java 8,68441:Fabric
           release_type: release
           relations: modmenu:optionalDependency,jsmacros:requiredDependency
       - uses: actions/upload-artifact@v2

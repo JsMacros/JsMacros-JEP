@@ -1,7 +1,9 @@
 package xyz.wagyourtail.jsmacros.jep.language.impl;
 
+import jep.JepConfig;
 import jep.JepException;
 import jep.SharedInterpreter;
+import jep.SubInterpreter;
 import xyz.wagyourtail.jsmacros.core.Core;
 import xyz.wagyourtail.jsmacros.core.config.ScriptTrigger;
 import xyz.wagyourtail.jsmacros.core.event.BaseEvent;
@@ -19,14 +21,18 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-public class JEPLanguageDefinition extends BaseLanguage<SharedInterpreter> {
+public class JEPLanguageDefinition extends BaseLanguage<SubInterpreter> {
     public JEPLanguageDefinition(String extension, Core runner) {
         super(extension, runner);
     }
-    
-    protected void execContext(BaseScriptContext<SharedInterpreter> ctx, Executor exec) throws Exception {
+
+    public static SubInterpreter createSubInterpreter(File folder) {
+        return new JepConfig().addIncludePaths(folder.getAbsolutePath()).redirectStdout(System.out).redirectStdErr(System.err).createSubInterpreter();
+    }
+
+    protected void execContext(BaseScriptContext<SubInterpreter> ctx, Executor exec) throws Exception {
         BlockingQueue<Runnable> taskQueue = ((JEPScriptContext) ctx).taskQueue;
-        try (SharedInterpreter interp = new SharedInterpreter()) {
+        try (SubInterpreter interp = createSubInterpreter(ctx.getContainedFolder())) {
             ctx.setContext(interp);
             
             for (Map.Entry<String, BaseLibrary> lib : retrieveLibs(ctx).entrySet()) interp.set(lib.getKey(), lib.getValue());
@@ -49,20 +55,18 @@ public class JEPLanguageDefinition extends BaseLanguage<SharedInterpreter> {
     }
     
     @Override
-    protected void exec(EventContainer<SharedInterpreter> ctx, ScriptTrigger macro, BaseEvent event) throws Exception {
+    protected void exec(EventContainer<SubInterpreter> ctx, ScriptTrigger macro, BaseEvent event) throws Exception {
         execContext(ctx.getCtx(), (interp) -> {
             interp.set("event", event);
             interp.set("file", ctx.getCtx().getFile());
             interp.set("context", ctx);
 
-            if (ctx.getCtx().getFile() != null)
-                interp.exec("import os\nos.chdir('" + ctx.getCtx().getFile().getParentFile().getCanonicalPath().replaceAll("\\\\", "/") + "')");
             interp.runScript(ctx.getCtx().getFile().getCanonicalPath());
         });
     }
     
     @Override
-    protected void exec(EventContainer<SharedInterpreter> ctx, String script, Map<String, Object> globals) throws Exception {
+    protected void exec(EventContainer<SubInterpreter> ctx, String script, Map<String, Object> globals) throws Exception {
         execContext(ctx.getCtx(), (interp) -> {
             if (globals != null) for (Map.Entry<String, Object> e : globals.entrySet()) {
                 interp.set(e.getKey(), e.getValue());
@@ -74,7 +78,7 @@ public class JEPLanguageDefinition extends BaseLanguage<SharedInterpreter> {
     }
     
     @Override
-    public BaseScriptContext<SharedInterpreter> createContext(BaseEvent event, File file) {
+    public BaseScriptContext<SubInterpreter> createContext(BaseEvent event, File file) {
         return new JEPScriptContext(event, file);
     }
     
@@ -113,6 +117,6 @@ public class JEPLanguageDefinition extends BaseLanguage<SharedInterpreter> {
     }
     
     protected interface Executor {
-        void accept(SharedInterpreter interpreter) throws Exception;
+        void accept(SubInterpreter interpreter) throws Exception;
     }
 }

@@ -2,6 +2,7 @@ package xyz.wagyourtail.jsmacros.jep.library.impl;
 
 import jep.JepException;
 import jep.SharedInterpreter;
+import jep.SubInterpreter;
 import jep.python.PyCallable;
 import xyz.wagyourtail.jsmacros.core.Core;
 import xyz.wagyourtail.jsmacros.core.MethodWrapper;
@@ -17,9 +18,9 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Library(value = "JavaWrapper", languages = JEPLanguageDefinition.class)
-public class FWrapper extends PerExecLanguageLibrary<SharedInterpreter> implements IFWrapper<PyCallable> {
+public class FWrapper extends PerExecLanguageLibrary<SubInterpreter> implements IFWrapper<PyCallable> {
     
-    public FWrapper(BaseScriptContext<SharedInterpreter> context, Class<? extends BaseLanguage<SharedInterpreter>> language) {
+    public FWrapper(BaseScriptContext<SubInterpreter> context, Class<? extends BaseLanguage<SubInterpreter>> language) {
         super(context, language);
     }
     
@@ -48,12 +49,12 @@ public class FWrapper extends PerExecLanguageLibrary<SharedInterpreter> implemen
         }
     }
 
-    private static class JEPMethodWrapper<T, U, R> extends MethodWrapper<T, U, R, BaseScriptContext<SharedInterpreter>> {
+    private static class JEPMethodWrapper<T, U, R> extends MethodWrapper<T, U, R, BaseScriptContext<SubInterpreter>> {
         private final PyCallable fn;
         private final boolean await;
         private final Thread overrideThread;
 
-        private JEPMethodWrapper(BaseScriptContext<SharedInterpreter> ctx, PyCallable fn, boolean await) {
+        private JEPMethodWrapper(BaseScriptContext<SubInterpreter> ctx, PyCallable fn, boolean await) {
             super(ctx);
             this.fn = fn;
             this.await = await;

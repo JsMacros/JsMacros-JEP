@@ -86,18 +86,18 @@ public class FWrapper extends PerExecLanguageLibrary<SubInterpreter> implements 
             Semaphore lock = new Semaphore(0);
 
             Thread callingThread = Thread.currentThread();
-            boolean joinedThread = Core.instance.profile.checkJoinedThreadStack();
+            boolean joinedThread = Core.getInstance().profile.checkJoinedThreadStack();
 
             ((JEPScriptContext)ctx).taskQueue.put(() -> {
                 try {
                     if (await && joinedThread) {
-                        Core.instance.profile.joinedThreadStack.add(overrideThread);
+                        Core.getInstance().profile.joinedThreadStack.add(overrideThread);
                     }
                     accepted.run();
                 } catch (JepException e) {
                     error[0] = e;
                 } finally {
-                    Core.instance.profile.joinedThreadStack.remove(overrideThread);
+                    Core.getInstance().profile.joinedThreadStack.remove(overrideThread);
 
                     ctx.releaseBoundEventIfPresent(overrideThread);
 

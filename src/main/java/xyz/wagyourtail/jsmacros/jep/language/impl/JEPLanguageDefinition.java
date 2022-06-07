@@ -2,7 +2,6 @@ package xyz.wagyourtail.jsmacros.jep.language.impl;
 
 import jep.JepConfig;
 import jep.JepException;
-import jep.SharedInterpreter;
 import jep.SubInterpreter;
 import xyz.wagyourtail.jsmacros.core.Core;
 import xyz.wagyourtail.jsmacros.core.config.ScriptTrigger;
@@ -14,7 +13,6 @@ import xyz.wagyourtail.jsmacros.core.language.EventContainer;
 import xyz.wagyourtail.jsmacros.core.library.BaseLibrary;
 
 import java.io.File;
-import java.lang.ref.WeakReference;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
@@ -64,15 +62,14 @@ public class JEPLanguageDefinition extends BaseLanguage<SubInterpreter> {
             interp.runScript(ctx.getCtx().getFile().getCanonicalPath());
         });
     }
-    
+
     @Override
-    protected void exec(EventContainer<SubInterpreter> ctx, String script, Map<String, Object> globals) throws Exception {
+    protected void exec(EventContainer<SubInterpreter> ctx, String script, BaseEvent event) throws Exception {
         execContext(ctx.getCtx(), (interp) -> {
-            if (globals != null) for (Map.Entry<String, Object> e : globals.entrySet()) {
-                interp.set(e.getKey(), e.getValue());
-            }
+            interp.set("event", event);
+            interp.set("file", ctx.getCtx().getFile());
             interp.set("context", ctx);
-    
+
             interp.exec(script);
         });
     }

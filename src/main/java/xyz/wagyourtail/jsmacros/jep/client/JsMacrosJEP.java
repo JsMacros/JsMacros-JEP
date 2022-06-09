@@ -1,5 +1,6 @@
 package xyz.wagyourtail.jsmacros.jep.client;
 
+import jep.MainInterpreter;
 import jep.SubInterpreter;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
@@ -11,6 +12,9 @@ import xyz.wagyourtail.jsmacros.jep.library.impl.FWrapper;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class JsMacrosJEP implements ModInitializer {
     
@@ -28,6 +32,10 @@ public class JsMacrosJEP implements ModInitializer {
         JsMacros.core.addLanguage(new JEPLanguageDefinition(".py", JsMacros.core));
         JsMacros.core.libraryRegistry.addLibrary(FWrapper.class);
         
+        preInit();
+    }
+
+    public static void preInit() {
         // pre-init
         Thread t = new Thread(() -> {
             try (SubInterpreter interp = JEPLanguageDefinition.createSubInterpreter(new File("./"))) {
@@ -36,20 +44,28 @@ public class JsMacrosJEP implements ModInitializer {
                 e.printStackTrace();
             }
         });
-        
+
         t.start();
     }
-    
+
     public static void addSharedLibrary(String path) {
-        File f = new File(FabricLoader.getInstance().getGameDir().toFile(), path);
-        if (f.exists()) {
-            File fo = new File(System.getProperty("java.library.path"), f.getName());
-            if (!fo.exists()) {
-                try {
-                    FileUtils.copyFile(f, fo);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+        Path p = FabricLoader.getInstance().getGameDir().resolve(path);
+        if (!Files.exists(p)) {
+            System.err.println("JEP: Shared library path does not exist: " + p);
+            return;
+        }
+        try {
+            MainInterpreter.setJepLibraryPath(p.toAbsolutePath().toString());
+        } catch (Throwable e) {
+            try {
+                Field instance = MainInterpreter.class.getDeclaredField("instance");
+                instance.setAccessible(true);
+                ((MainInterpreter) instance.get(null)).close();
+                instance.set(null, null);
+                MainInterpreter.setJepLibraryPath(p.toAbsolutePath().toString());
+                preInit();
+            } catch (NoSuchFieldException | IllegalAccessException ex) {
+                throw new RuntimeException(ex);
             }
         }
     }

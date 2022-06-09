@@ -13,8 +13,6 @@ In order to use `JEP` you will need to install it using the guide for your OS on
 5. set the relative path for the dll in `.minecraft/config/jsMacros/jep-options.json` (default is `.minecraft/jep.dll`)
 6. profit
 
-if you go through the effort to set this up on linux/mac please Pull-Request the steps or message @wagyourtail on the JsMacros discord
-
 # issues/notes
 
 * Use the consumer wrappers to make JEP able to run consumers properly.

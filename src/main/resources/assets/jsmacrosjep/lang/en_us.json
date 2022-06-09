@@ -1,4 +1,5 @@
 {
   "jsmacrosjep.settings.languages.jep": "JEP",
-  "jsmacrosjep.sharedpath": "Shared Library Path"
+  "jsmacrosjep.sharedpath": "Shared Library Path",
+  "jsmacrosjep.sharedlibs": "Shared Libraries"
 }

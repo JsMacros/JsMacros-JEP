@@ -11,6 +11,7 @@ import xyz.wagyourtail.jsmacros.core.language.BaseScriptContext;
 import xyz.wagyourtail.jsmacros.core.language.BaseWrappedException;
 import xyz.wagyourtail.jsmacros.core.language.EventContainer;
 import xyz.wagyourtail.jsmacros.core.library.BaseLibrary;
+import xyz.wagyourtail.jsmacros.jep.config.JEPConfig;
 
 import java.io.File;
 import java.util.Arrays;
@@ -25,7 +26,7 @@ public class JEPLanguageDefinition extends BaseLanguage<SubInterpreter> {
     }
 
     public static SubInterpreter createSubInterpreter(File folder) {
-        return new JepConfig().addIncludePaths(folder.getAbsolutePath()).redirectStdout(System.out).redirectStdErr(System.err).createSubInterpreter();
+        return new JepConfig().addSharedModules(Core.getInstance().config.getOptions(JEPConfig.class).sharedLibs.split("[\\s,]")).addIncludePaths(folder.getAbsolutePath()).redirectStdout(System.out).redirectStdErr(System.err).createSubInterpreter();
     }
 
     protected void execContext(BaseScriptContext<SubInterpreter> ctx, Executor exec) throws Exception {

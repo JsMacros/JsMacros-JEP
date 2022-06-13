@@ -43,7 +43,8 @@ public class JEPLanguageDefinition extends BaseLanguage<SubInterpreter> {
                 //clear the sync object earlier since we're still using the thread for the {@link Runnable}s
                 ctx.clearSyncObject();
                 while (!ctx.isContextClosed()) {
-                    taskQueue.poll(5000, TimeUnit.MILLISECONDS).run();
+                    Runnable toRun = taskQueue.poll(5000, TimeUnit.MILLISECONDS);
+                    if (toRun != null) toRun.run();
                 }
             } catch (InterruptedException | NullPointerException ignored) {
             } finally {

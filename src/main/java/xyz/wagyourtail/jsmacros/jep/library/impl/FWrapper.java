@@ -1,124 +1,177 @@
 package xyz.wagyourtail.jsmacros.jep.library.impl;
 
 import jep.JepException;
-import jep.SharedInterpreter;
 import jep.SubInterpreter;
 import jep.python.PyCallable;
 import xyz.wagyourtail.jsmacros.core.Core;
 import xyz.wagyourtail.jsmacros.core.MethodWrapper;
-import xyz.wagyourtail.jsmacros.core.language.BaseLanguage;
 import xyz.wagyourtail.jsmacros.core.language.BaseScriptContext;
 import xyz.wagyourtail.jsmacros.core.library.IFWrapper;
 import xyz.wagyourtail.jsmacros.core.library.Library;
 import xyz.wagyourtail.jsmacros.core.library.PerExecLanguageLibrary;
 import xyz.wagyourtail.jsmacros.jep.language.impl.JEPLanguageDefinition;
 import xyz.wagyourtail.jsmacros.jep.language.impl.JEPScriptContext;
+import xyz.wagyourtail.jsmacros.jep.language.impl.WrappedThread;
 
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @Library(value = "JavaWrapper", languages = JEPLanguageDefinition.class)
-public class FWrapper extends PerExecLanguageLibrary<SubInterpreter> implements IFWrapper<PyCallable> {
+public class FWrapper extends PerExecLanguageLibrary<SubInterpreter, JEPScriptContext> implements IFWrapper<PyCallable> {
     
-    public FWrapper(BaseScriptContext<SubInterpreter> context, Class<? extends BaseLanguage<SubInterpreter>> language) {
+    public FWrapper(JEPScriptContext context, Class<JEPLanguageDefinition> language) {
         super(context, language);
     }
     
     @Override
     public <A, B, R> MethodWrapper<A, B, R, ?> methodToJava(PyCallable c) {
-        return new JEPMethodWrapper<>(ctx, c, true);
+        return new JEPMethodWrapper<>(ctx, c, true, 5);
     }
     
     @Override
     public <A, B, R> MethodWrapper<A, B, R, ?> methodToJavaAsync(PyCallable c) {
-        return new JEPMethodWrapper<>(ctx, c, false);
+        return new JEPMethodWrapper<>(ctx, c, false, 5);
     }
-    
+
+    @Override
+    public <A, B, R> MethodWrapper<A, B, R, ?> methodToJavaAsync(int priority, PyCallable c) {
+        return new JEPMethodWrapper<>(ctx, c, false, priority);
+    }
+
     @Override
     public void stop() {
         ctx.closeContext();
     }
 
+    @Override
     public void deferCurrentTask() throws InterruptedException {
-        AtomicBoolean lock = new AtomicBoolean(true);
-
-        ((JEPScriptContext)ctx).taskQueue.put(() -> lock.set(false));
-
-        while (lock.get()) {
-            ((JEPScriptContext)ctx).taskQueue.poll().run();
-        }
+        ctx.wrapSleep(() -> {});
     }
 
-    private static class JEPMethodWrapper<T, U, R> extends MethodWrapper<T, U, R, BaseScriptContext<SubInterpreter>> {
+    @Override
+    public void deferCurrentTask(int priorityAdjust) throws InterruptedException {
+        ctx.wrapSleep(priorityAdjust, () -> {});
+    }
+
+    private static class JEPMethodWrapper<T, U, R> extends MethodWrapper<T, U, R, JEPScriptContext> {
         private final PyCallable fn;
         private final boolean await;
-        private final Thread overrideThread;
+        private final int priority;
 
-        private JEPMethodWrapper(BaseScriptContext<SubInterpreter> ctx, PyCallable fn, boolean await) {
+        private JEPMethodWrapper(JEPScriptContext ctx, PyCallable fn, boolean await, int priority) {
             super(ctx);
             this.fn = fn;
             this.await = await;
-            this.overrideThread = ctx.getMainThread();
+            this.priority = priority;
         }
 
-        @Override
-        public Thread overrideThread() {
-            return overrideThread;
-        }
-
-        private void inner_accept(RunnableEx accepted, boolean await) throws InterruptedException {
+        private void inner_accept(RunnableEx accepted) throws InterruptedException {
 
             // if in the same JEP context and not async...
             if (await) {
-                if (ctx.getMainThread() == Thread.currentThread()) {
-                    try {
-                        accepted.run();
-                    } catch (JepException e) {
-                        throw new RuntimeException(e);
-                    }
-                    return;
-                }
-
-                ctx.bindThread(Thread.currentThread());
+                inner_apply(accepted);
+                return;
             }
 
-            Throwable[] error = {null};
-            Semaphore lock = new Semaphore(0);
-
-            Thread callingThread = Thread.currentThread();
-            boolean joinedThread = Core.getInstance().profile.checkJoinedThreadStack();
-
-            ((JEPScriptContext)ctx).taskQueue.put(() -> {
+            Thread th = new Thread(() -> {
                 try {
-                    if (await && joinedThread) {
-                        Core.getInstance().profile.joinedThreadStack.add(overrideThread);
+                    ctx.tasks.add(new WrappedThread(Thread.currentThread(), priority));
+                    ctx.bindThread(Thread.currentThread());
+
+                    WrappedThread joinable = ctx.tasks.peek();
+                    assert joinable != null;
+                    while (joinable.thread != Thread.currentThread()) {
+                        joinable.waitFor();
+                        joinable = ctx.tasks.peek();
+                        assert joinable != null;
                     }
-                    accepted.run();
-                } catch (JepException e) {
-                    error[0] = e;
-                } finally {
-                    Core.getInstance().profile.joinedThreadStack.remove(overrideThread);
 
-                    ctx.releaseBoundEventIfPresent(overrideThread);
+                    if (ctx.isContextClosed()) {
+                        ctx.unbindThread(Thread.currentThread());
+                        assert ctx.tasks.peek() != null;
+                        ctx.tasks.poll().release();
+                        throw new BaseScriptContext.ScriptAssertionError("Context closed");
+                    }
 
-                    lock.release();
-                }
-            });
+                    ctx.enter();
+                    try {
+                        accepted.run();
+                    } catch (Throwable ex) {
+                        Core.getInstance().profile.logError(ex);
+                    } finally {
+                        ctx.leave();
 
-            if (await) {
-                try {
-                    lock.acquire();
-                    if (error[0] != null) throw new RuntimeException(error[0]);
+                        ctx.releaseBoundEventIfPresent(Thread.currentThread());
+
+                        Core.getInstance().profile.joinedThreadStack.remove(Thread.currentThread());
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 } finally {
                     ctx.unbindThread(Thread.currentThread());
+                    assert ctx.tasks.peek() != null;
+                    ctx.tasks.poll().release();
                 }
+            });
+            th.start();
+        }
+
+        private void inner_apply(RunnableEx accepted) {
+            if (ctx.isContextClosed()) {
+                throw new BaseScriptContext.ScriptAssertionError("Context closed");
+            }
+
+            if (ctx.getBoundThreads().contains(Thread.currentThread())) {
+                accepted.run();
+                return;
+            }
+
+            try {
+                ctx.bindThread(Thread.currentThread());
+                ctx.tasks.add(new WrappedThread(Thread.currentThread(), priority));
+
+                WrappedThread joinable = ctx.tasks.peek();
+                assert joinable != null;
+                while (joinable.thread != Thread.currentThread()) {
+                    joinable.waitFor();
+                    joinable = ctx.tasks.peek();
+                    assert joinable != null;
+                }
+
+                if (ctx.isContextClosed()) {
+                    ctx.unbindThread(Thread.currentThread());
+                    assert ctx.tasks.peek() != null;
+                    ctx.tasks.poll().release();
+                    throw new BaseScriptContext.ScriptAssertionError("Context closed");
+                }
+
+                ctx.enter();
+                try {
+                    if (await && Core.getInstance().profile.checkJoinedThreadStack()) {
+                        Core.getInstance().profile.joinedThreadStack.add(Thread.currentThread());
+                    }
+                    accepted.run();
+                    return;
+                } catch (Throwable ex) {
+                    throw new RuntimeException(ex);
+                } finally {
+                    ctx.leave();
+                    ctx.releaseBoundEventIfPresent(Thread.currentThread());
+                    Core.getInstance().profile.joinedThreadStack.remove(Thread.currentThread());
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+                throw new RuntimeException(e);
+            } finally {
+                ctx.unbindThread(Thread.currentThread());
+                assert ctx.tasks.peek() != null;
+                ctx.tasks.poll().release();
             }
         }
 
         @Override
         public void accept(T t) {
             try {
-                inner_accept(() -> fn.call(t), await);
+                inner_accept(() -> fn.call(t));
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -127,7 +180,7 @@ public class FWrapper extends PerExecLanguageLibrary<SubInterpreter> implements 
         @Override
         public void accept(T t, U u) {
             try {
-                inner_accept(() -> fn.call(t, u), await);
+                inner_accept(() -> fn.call(t, u));
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -136,51 +189,35 @@ public class FWrapper extends PerExecLanguageLibrary<SubInterpreter> implements 
         @Override
         public R apply(T t) {
             Object[] retval = {null};
-            try {
-                inner_accept(() -> retval[0] = fn.call(t), true);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            inner_apply(() -> retval[0] = fn.call(t));
             return (R) retval[0];
         }
 
         @Override
         public R apply(T t, U u) {
             Object[] retval = {null};
-            try {
-                inner_accept(() -> retval[0] = fn.call(t, u), true);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            inner_apply(() -> retval[0] = fn.call(t, u));
             return (R) retval[0];
         }
 
         @Override
         public boolean test(T t) {
             boolean[] retval = {false};
-            try {
-                inner_accept(() -> retval[0] = (Boolean) fn.call(t), true);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            inner_apply(() -> retval[0] = (Boolean) fn.call(t));
             return retval[0];
         }
 
         @Override
         public boolean test(T t, U u) {
             boolean[] retval = {false};
-            try {
-                inner_accept(() -> retval[0] = (Boolean) fn.call(t), true);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            inner_apply(() -> retval[0] = (Boolean) fn.call(t));
             return retval[0];
         }
 
         @Override
         public void run() {
             try {
-                inner_accept(fn::call, await);
+                inner_accept(fn::call);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -189,22 +226,14 @@ public class FWrapper extends PerExecLanguageLibrary<SubInterpreter> implements 
         @Override
         public int compare(T o1, T o2) {
             int[] retval = {0};
-            try {
-                inner_accept(() -> retval[0] = (Integer) fn.call(o1, o2), true);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            inner_apply(() -> retval[0] = (Integer) fn.call(o1, o2));
             return retval[0];
         }
 
         @Override
         public R get() {
             Object[] retval = {0};
-            try {
-                inner_accept(() -> retval[0] = fn.call(), true);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            inner_apply(() -> retval[0] = fn.call());
             return (R) retval[0];
         }
     }

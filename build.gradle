@@ -1,115 +1,88 @@
 plugins {
-	id 'fabric-loom' version '0.12-SNAPSHOT'
 	id 'maven-publish'
+	id 'java'
 }
 
 sourceCompatibility = JavaVersion.VERSION_1_8
 targetCompatibility = JavaVersion.VERSION_1_8
 
 archivesBaseName = project.archives_base_name
-version = project.mod_version
+version = project.property("version")
 group = project.maven_group
 
 repositories {
 	mavenCentral()
-   flatDir {
-       dirs 'libs'
-   }
-    maven {
-        name "Modmuss50 Repository"
-        url 'https://maven.fabricmc.net/'
-    }
-    maven { url 'https://maven.terraformersmc.com/releases/' }
-	maven { url 'https://jitpack.io' }
-	maven { url 'https://www.cursemaven.com' }
+	maven {
+		url 'https://jitpack.io'
+		metadataSources {
+			artifact()
+		}
+	}
+}
+
+configurations {
+	jsmacrosExtensionInclude
 }
 
 dependencies {
-	//to change the versions see the gradle.properties file
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation 'com.google.guava:guava:31.1-jre'
+	implementation 'org.slf4j:slf4j-api:2.0.0-alpha7'
+	implementation 'com.google.code.gson:gson:2.9.0'
+	testImplementation 'org.slf4j:slf4j-simple:2.0.0-alpha7'
+	implementation 'javassist:javassist:3.12.1.GA'
+	implementation 'fastutil:fastutil:5.0.9'
+	implementation "com.github.jsmacros.jsmacros:jsmacros-1.19:${project.jsmacros_version}"
 
 	//add JEP
 	implementation 'com.github.ninia:jep:v4.0.3'
-	include 'com.github.ninia:jep:v4.0.3'
+	jsmacrosExtensionInclude 'com.github.ninia:jep:v4.0.3'
 
-	//partial fabric api
-//	modApi fabricApi.module("fabric-api-base",  project.fapi_version)
-//	modApi fabricApi.module("fabric-lifecycle-events-v1",  project.fapi_version)
-//	modApi fabricApi.module("fabric-key-binding-api-v1",  project.fapi_version)
-//	modApi fabricApi.module("fabric-resource-loader-v0",  project.fapi_version)
-//	modApi fabricApi.module("fabric-command-api-v2",  project.fapi_version)
+	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
 
-
-	modImplementation "com.github.wagyourtail:jsmacros:${project.jsmacros_version}"
-//
-//	implementation "org.graalvm.sdk:graal-sdk:${project.graal_version}"
-//	implementation "org.graalvm.js:js:${project.graal_version}"
-//	implementation "org.graalvm.truffle:truffle-api:${project.graal_version}"
-//	if (targetCompatibility == JavaVersion.VERSION_16) {
-//		implementation "org.graalvm.compiler:compiler:${project.graal_version}"
-//		implementation "org.graalvm.compiler:compiler-management:${project.graal_version}"
-//	}
-//	implementation "org.graalvm.regex:regex:${project.graal_version}"
-
-//	implementation group: 'com.ibm.icu', name: 'icu4j', version: '67.1'
-
-//	implementation "io.noties:prism4j:${project.prism_version}"
-
-	//nullable not defined so...
-//	implementation 'com.google.code.findbugs:jsr305:3.0.2'
-
-//	for modmenu
-//	modImplementation "net.fabricmc.fabric-api:fabric-screen-api-v1:1.0.4+155f865c13"
+	implementation 'org.jetbrains:annotations:16.0.2'
 }
 
-processResources {
-	inputs.property "version", project.version
 
-	filesMatching("fabric.mod.json") {
-		expand "version": project.version
+processResources {
+	filesMatching("jsmacros.ext.jep.json") {
+		expand "dependencies": configurations.jsmacrosExtensionInclude.files.collect { it.name }.join(" ")
 	}
 }
 
 
-// ensure that the encoding is set to UTF-8, no matter what the system default is
-// this fixes some edge cases with special characters not displaying correctly
-// see http://yodaconditions.net/blog/fix-for-java-file-encoding-problems-with-gradle.html
-tasks.withType(JavaCompile) {
+compileJava {
 	options.encoding = "UTF-8"
+	def targetVersion = 8
+	if (JavaVersion.current().isJava9Compatible()) {
+		it.options.release = targetVersion
+	}
 }
 
-// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-// if it is present.
-// If you remove this task, sources will not be generated.
-task sourcesJar(type: Jar, dependsOn: classes) {
-	classifier = "sources"
-	from sourceSets.main.allSource
+compileTestJava {
+	sourceCompatibility = JavaVersion.VERSION_17
+	targetCompatibility = JavaVersion.VERSION_17
+
+	options.release.set(17)
 }
+
 
 jar {
 	from "LICENSE"
+	from (configurations.jsmacrosExtensionInclude.files) {
+		include '*'
+		into "META-INF/jsmacrosdeps"
+	}
+}
+
+test {
+	useJUnitPlatform()
 }
 
 // configure the maven publication
 publishing {
 	publications {
-		mavenJava(MavenPublication) {
-			// add all the jars that should be included when publishing to maven
-			artifact(remapJar) {
-				builtBy remapJar
-			}
-			artifact(sourcesJar) {
-				builtBy remapSourcesJar
-			}
-		}
 	}
-
-	// select the repositories you want to publish to
 	repositories {
-		// uncomment to publish to the local maven
-		// mavenLocal()
-		
 	}
 }

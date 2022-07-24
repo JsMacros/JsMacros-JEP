@@ -87,4 +87,15 @@ public class JEPScriptContext extends BaseScriptContext<SubInterpreter> {
         }
     }
 
+    @Override
+    public synchronized void closeContext() {
+        super.closeContext();
+        getContext().close();
+    }
+
+    @Override
+    protected void finalize() {
+        closeContext();
+    }
+
 }

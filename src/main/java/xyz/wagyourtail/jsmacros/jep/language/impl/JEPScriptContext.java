@@ -68,7 +68,7 @@ public class JEPScriptContext extends BaseScriptContext<SubInterpreter> {
         }
     }
 
-    public void enter() {
+    public synchronized void enter() {
         try {
             if (f.get(getContext()) != null) {
                 throw new IllegalStateException("Thread already set");
@@ -79,7 +79,7 @@ public class JEPScriptContext extends BaseScriptContext<SubInterpreter> {
         }
     }
 
-    public void leave() {
+    public synchronized void leave() {
         try {
             f.set(getContext(), null);
         } catch (IllegalAccessException e) {
@@ -90,7 +90,12 @@ public class JEPScriptContext extends BaseScriptContext<SubInterpreter> {
     @Override
     public synchronized void closeContext() {
         super.closeContext();
-        getContext().close();
+
+        // force on right thread to close
+        try {
+            f.set(getContext(), Thread.currentThread());
+            getContext().close();
+        } catch (Throwable ignored) {}
     }
 
     @Override

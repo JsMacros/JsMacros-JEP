@@ -10,8 +10,7 @@ In order to use `JEP` you will need to install it using the guide for your OS on
 2. install the newest version of [Visual C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
 3. launch the developer command prompt, and run `pip install -U jep`.
 4. copy the DLL from `Python38\Lib\site-packages\jep\jep.dll` to your minecraft directory
-5. set the relative path for the dll in `.minecraft/config/jsMacros/jep-options.json` (default is `.minecraft/jep.dll`)
-6. profit
+5. Set the relative path for the `dll` in `.minecraft/config/jsMacros/options.json` at the `jep.path` key (default is `.minecraft/jep.dll`)
 
 # issues/notes
 

@@ -16,16 +16,3 @@ In order to use `JEP` you will need to install it using the guide for your OS on
 
 ## JavaWrapper
 * language spec requires that only one thread can hold an instance of the language at a time, so this implementation uses a non-preemptive priority queue for the threads that call the resulting MethodWrapper. 
-
-
-## 1.0.1+
-
-### toConsumer(function) *1.0.1+*
-*Example:* `consumer.toConsumer(func)`
-
-### toBiConsumer(function) *1.0.1+*
-*Example:* `consumer.toBiConsumer(func)`
-
-### stop() *1.0.1+*
-*Example:* `consumer.stop()`
-

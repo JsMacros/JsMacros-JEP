@@ -14,8 +14,8 @@ In order to use `JEP` you will need to install it using the guide for your OS on
 
 # issues/notes
 
-* Use the consumer wrappers to make JEP able to run consumers properly.
-* JEP expects each consumer to be run at least once and after they have all been run, will close, make sure to add a consumer to onClose (or in `draw2d` re-define the consumer for init at the bottom of the init function). you can also close the JEP instance early with `consumer.stop()`.
+## JavaWrapper
+* language spec requires that only one thread can hold an instance of the language at a time, so this implementation uses a non-preemptive priority queue for the threads that call the resulting MethodWrapper. 
 
 
 ## 1.0.1+

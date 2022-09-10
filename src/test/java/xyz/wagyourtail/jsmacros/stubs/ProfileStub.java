@@ -8,11 +8,13 @@ import xyz.wagyourtail.jsmacros.core.config.CoreConfigV2;
 import xyz.wagyourtail.jsmacros.core.event.BaseEvent;
 import xyz.wagyourtail.jsmacros.core.event.IEventListener;
 import xyz.wagyourtail.jsmacros.core.event.impl.EventCustom;
+import xyz.wagyourtail.jsmacros.core.event.impl.EventProfileLoad;
 import xyz.wagyourtail.jsmacros.core.language.EventContainer;
 import xyz.wagyourtail.jsmacros.core.library.impl.FJsMacros;
 
 import java.util.LinkedList;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 public class ProfileStub extends BaseProfile {
 
@@ -21,14 +23,26 @@ public class ProfileStub extends BaseProfile {
 
     static {
         th = new Thread(() -> {
-            try {
-                Thread.sleep(50);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
             while (true) {
                 try {
-                    runnables.take().run();
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                new EventTick();
+                try {
+                    while (true) {
+                        Runnable r = runnables.poll(0, TimeUnit.SECONDS);
+                        if (r != null) {
+                            try {
+                                r.run();
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        } else {
+                            break;
+                        }
+                    }
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -94,6 +108,13 @@ public class ProfileStub extends BaseProfile {
         } catch (InterruptedException ignored) {
             joinedThreadStack.remove(t.getLockThread());
         }
+    }
+
+    @Override
+    protected void initRegistries() {
+        super.initRegistries();
+
+        this.runner.eventRegistry.addEvent(EventTick.class);
     }
 
 }

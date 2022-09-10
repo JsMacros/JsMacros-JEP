@@ -36,9 +36,13 @@ public class JEPLanguageDefinition extends BaseLanguage<SubInterpreter, JEPScrip
             ctx.setContext(interp);
             
             for (Map.Entry<String, BaseLibrary> lib : retrieveLibs(ctx).entrySet()) interp.set(lib.getKey(), lib.getValue());
-        
-            exec.accept(interp);
-            ctx.leave();
+
+            try {
+                exec.accept(interp);
+            } finally {
+                ctx.leave();
+                ctx.tasks.poll().release();
+            }
     }
     
     @Override

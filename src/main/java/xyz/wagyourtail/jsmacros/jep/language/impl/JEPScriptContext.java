@@ -1,21 +1,20 @@
 package xyz.wagyourtail.jsmacros.jep.language.impl;
 
-import jep.Jep;
 import jep.SubInterpreter;
 import xyz.wagyourtail.PrioryFiFoTaskQueue;
 import xyz.wagyourtail.jsmacros.core.event.BaseEvent;
 import xyz.wagyourtail.jsmacros.core.language.BaseScriptContext;
+import xyz.wagyourtail.jsmacros.core.language.EventContainer;
 
 import java.io.File;
-import java.lang.invoke.MethodHandle;
-import java.lang.reflect.Field;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Stack;
 
 public class JEPScriptContext extends BaseScriptContext<SubInterpreter> {
-    public final PrioryFiFoTaskQueue<WrappedThread> tasks = new PrioryFiFoTaskQueue<>(JEPScriptContext::getThreadPriority);
+    public final Stack<Thread> overrideThreadStack = new Stack<>();
+    public final PrioryFiFoTaskQueue<VirtualThread> tasks = new PrioryFiFoTaskQueue<>(JEPScriptContext::getThreadPriority);
     public JEPScriptContext(BaseEvent event, File file) {
         super(event, file);
-        tasks.add(new WrappedThread(Thread.currentThread(), 5));
+        tasks.add(new VirtualThread(null, 5));
     }
 
     @Override
@@ -24,7 +23,7 @@ public class JEPScriptContext extends BaseScriptContext<SubInterpreter> {
     }
 
     public static int getThreadPriority(Object thread) {
-        return -((WrappedThread) thread).priority;
+        return -((VirtualThread) thread).priority;
     }
 
     @Override
@@ -33,74 +32,97 @@ public class JEPScriptContext extends BaseScriptContext<SubInterpreter> {
     }
 
     public void wrapSleep(int changePriority, SleepRunnable sleep) throws InterruptedException {
-        leave();
-
-        try {
-            assert tasks.peek() != null;
-            // remove self from queue
-            int prio = tasks.poll().release();
-
-            sleep.run();
-
-            // put self at back of the queue
-            tasks.add(new WrappedThread(Thread.currentThread(), prio + changePriority));
-
-            // wait to be at the front of the queue again
-            WrappedThread joinable = tasks.peek();
-            assert joinable != null;
-            while (joinable.thread != Thread.currentThread()) {
-                joinable.waitFor();
-                joinable = tasks.peek();
-                assert joinable != null;
+        assert tasks.peek() != null;
+        // remove self from queue
+        VirtualThread self = tasks.poll();
+        self.priority += changePriority;
+        new Thread(() -> {
+            try {
+                sleep.run();
+                // put self at back of the queue
+                tasks.add(self);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
-        } finally {
-            enter();
-        }
+        }).start();
+        reEntrantTaskRunner(self);
     }
 
-    private static final Field f;
-    static {
-        try {
-            f = Jep.class.getDeclaredField("thread");
-            f.setAccessible(true);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public synchronized void enter() {
-        try {
-            if (f.get(getContext()) != null) {
-                throw new IllegalStateException("Thread already set");
+    public void reEntrantTaskRunner(VirtualThread endWith) throws InterruptedException {
+        VirtualThread joinable;
+        while (!isContextClosed()) {
+            joinable = tasks.peekWaiting(1000);
+            if (joinable == null) {
+//                System.out.println("timed out");
+                continue;
             }
-            f.set(getContext(), Thread.currentThread());
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public synchronized void leave() {
-        try {
-            f.set(getContext(), null);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
+            if (joinable == endWith) {
+//                System.out.println("reEntrantTaskQueuer: endWith " + endWith);
+                break;
+            }
+//            System.out.println("reEntrantTaskQueuer: joining " + joinable);
+            joinable.thread.run();
+            tasks.poll();
         }
     }
 
     @Override
     public synchronized void closeContext() {
         super.closeContext();
-
-        // force on right thread to close
-        try {
-            f.set(getContext(), Thread.currentThread());
-            getContext().close();
-        } catch (Throwable ignored) {}
+        getContext().close();
     }
 
     @Override
     protected void finalize() {
         closeContext();
+    }
+
+    public void enter(Thread thread) {
+        overrideThreadStack.push(thread);
+    }
+
+    public void exit() {
+        overrideThreadStack.pop();
+    }
+
+    @Override
+    public synchronized boolean releaseBoundEventIfPresent(Thread thread) {
+        if (thread == mainThread) {
+            return super.releaseBoundEventIfPresent(overrideThreadStack.peek());
+        }
+        return super.releaseBoundEventIfPresent(thread);
+    }
+
+    @Override
+    public synchronized boolean bindThread(Thread t) {
+        if (t == mainThread) {
+            return super.bindThread(overrideThreadStack.isEmpty() ? t : overrideThreadStack.peek());
+        }
+        return super.bindThread(t);
+    }
+
+    @Override
+    public synchronized void bindEvent(Thread th, EventContainer<BaseScriptContext<SubInterpreter>> event) {
+        if (th == mainThread) {
+            super.bindEvent(overrideThreadStack.peek(), event);
+        } else {
+            super.bindEvent(th, event);
+        }
+    }
+
+    @Override
+    public synchronized void unbindThread(Thread t) {
+        if (t == mainThread) {
+            super.unbindThread(overrideThreadStack.peek());
+        } else {
+            super.unbindThread(t);
+        }
+    }
+
+    @Override
+    public void setMainThread(Thread t) {
+        super.setMainThread(t);
+        overrideThreadStack.push(t);
     }
 
 }

@@ -16,13 +16,14 @@ public class CoreTest {
         import json
         order = []
         def add(i):
+            print(i)
             order.append(i)
-            event.putString("test", json.dumps(order))
         JavaWrapper.methodToJavaAsync(5, lambda: add(1)).run()
         JavaWrapper.methodToJavaAsync(5, lambda: add(2)).run()
         JavaWrapper.methodToJavaAsync(6, lambda: add(3)).run()
         add(0)
         JavaWrapper.deferCurrentTask(-2)
+        event.putString("test", json.dumps(order))
         """;
 
     @Language("py")

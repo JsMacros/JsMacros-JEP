@@ -11,7 +11,7 @@ import xyz.wagyourtail.jsmacros.core.library.Library;
 import xyz.wagyourtail.jsmacros.core.library.PerExecLanguageLibrary;
 import xyz.wagyourtail.jsmacros.jep.language.impl.JEPLanguageDefinition;
 import xyz.wagyourtail.jsmacros.jep.language.impl.JEPScriptContext;
-import xyz.wagyourtail.jsmacros.jep.language.impl.WrappedThread;
+import xyz.wagyourtail.jsmacros.jep.language.impl.VirtualThread;
 
 import java.util.concurrent.Semaphore;
 
@@ -57,6 +57,7 @@ public class FWrapper extends PerExecLanguageLibrary<SubInterpreter, JEPScriptCo
         private final boolean await;
         private final int priority;
 
+
         private JEPMethodWrapper(JEPScriptContext ctx, PyCallable fn, boolean await, int priority) {
             super(ctx);
             this.fn = fn;
@@ -67,104 +68,50 @@ public class FWrapper extends PerExecLanguageLibrary<SubInterpreter, JEPScriptCo
         private void inner_accept(RunnableEx accepted) throws InterruptedException {
 
             // if in the same JEP context and not async...
-            if (await) {
-                inner_apply(accepted);
-                return;
-            }
+            Semaphore s = new Semaphore(await ? 0 : 1);
 
-            Thread th = new Thread(() -> {
-                try {
-                    ctx.tasks.add(new WrappedThread(Thread.currentThread(), priority));
-                    ctx.bindThread(Thread.currentThread());
-
-                    WrappedThread joinable = ctx.tasks.peek();
-                    assert joinable != null;
-                    while (joinable.thread != Thread.currentThread()) {
-                        joinable.waitFor();
-                        joinable = ctx.tasks.peek();
-                        assert joinable != null;
-                    }
-
-                    if (ctx.isContextClosed()) {
-                        ctx.unbindThread(Thread.currentThread());
-                        assert ctx.tasks.peek() != null;
-                        ctx.tasks.poll().release();
-                        throw new BaseScriptContext.ScriptAssertionError("Context closed");
-                    }
-
-                    ctx.enter();
-                    try {
-                        accepted.run();
-                    } catch (Throwable ex) {
-                        Core.getInstance().profile.logError(ex);
-                    } finally {
-                        ctx.leave();
-
-                        ctx.releaseBoundEventIfPresent(Thread.currentThread());
-
-                        Core.getInstance().profile.joinedThreadStack.remove(Thread.currentThread());
-                    }
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                } finally {
-                    ctx.unbindThread(Thread.currentThread());
-                    assert ctx.tasks.peek() != null;
-                    ctx.tasks.poll().release();
+            Thread overrideThread = new Thread() {
+                @Override
+                public void interrupt() {
+                    Thread.currentThread().interrupt();
                 }
-            });
-            th.start();
+            };
+
+            Runnable accept = () -> {
+                if (ctx.isContextClosed()) {
+                    throw new BaseScriptContext.ScriptAssertionError("Context closed");
+                }
+                try {
+                    ctx.overrideThreadStack.push(overrideThread);
+                    ctx.bindThread(overrideThread);
+                    accepted.run();
+                } catch (Throwable ex) {
+                    Core.getInstance().profile.logError(ex);
+                } finally {
+                    ctx.releaseBoundEventIfPresent(overrideThread);
+                    Core.getInstance().profile.joinedThreadStack.remove(overrideThread);
+                    ctx.unbindThread(overrideThread);
+
+                    ctx.overrideThreadStack.pop();
+                    s.release();
+                }
+            };
+
+//            System.out.println("JEPMethodWrapper.inner_accept: " + priority);
+            ctx.tasks.add(new VirtualThread(accept, priority));
+            s.acquire();
         }
 
         private void inner_apply(RunnableEx accepted) {
-            if (ctx.isContextClosed()) {
-                throw new BaseScriptContext.ScriptAssertionError("Context closed");
-            }
-
-            if (ctx.getBoundThreads().contains(Thread.currentThread())) {
-                accepted.run();
-                return;
-            }
-
+            Semaphore sem = new Semaphore(0);
             try {
-                ctx.bindThread(Thread.currentThread());
-                ctx.tasks.add(new WrappedThread(Thread.currentThread(), priority));
-
-                WrappedThread joinable = ctx.tasks.peek();
-                assert joinable != null;
-                while (joinable.thread != Thread.currentThread()) {
-                    joinable.waitFor();
-                    joinable = ctx.tasks.peek();
-                    assert joinable != null;
-                }
-
-                if (ctx.isContextClosed()) {
-                    ctx.unbindThread(Thread.currentThread());
-                    assert ctx.tasks.peek() != null;
-                    ctx.tasks.poll().release();
-                    throw new BaseScriptContext.ScriptAssertionError("Context closed");
-                }
-
-                ctx.enter();
-                try {
-                    if (await && Core.getInstance().profile.checkJoinedThreadStack()) {
-                        Core.getInstance().profile.joinedThreadStack.add(Thread.currentThread());
-                    }
+                inner_accept(() -> {
                     accepted.run();
-                    return;
-                } catch (Throwable ex) {
-                    throw new RuntimeException(ex);
-                } finally {
-                    ctx.leave();
-                    ctx.releaseBoundEventIfPresent(Thread.currentThread());
-                    Core.getInstance().profile.joinedThreadStack.remove(Thread.currentThread());
-                }
+                    sem.release();
+                });
+                sem.acquire();
             } catch (InterruptedException e) {
-                e.printStackTrace();
                 throw new RuntimeException(e);
-            } finally {
-                ctx.unbindThread(Thread.currentThread());
-                assert ctx.tasks.peek() != null;
-                ctx.tasks.poll().release();
             }
         }
 
@@ -236,6 +183,7 @@ public class FWrapper extends PerExecLanguageLibrary<SubInterpreter, JEPScriptCo
             inner_apply(() -> retval[0] = fn.call());
             return (R) retval[0];
         }
+
     }
 
     interface RunnableEx {

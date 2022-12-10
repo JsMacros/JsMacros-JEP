@@ -34,8 +34,8 @@ dependencies {
 	implementation "com.github.jsmacros.jsmacros:jsmacros-1.19:${project.jsmacros_version}"
 
 	//add JEP
-	implementation 'com.github.ninia:jep:v4.0.3'
-	jsmacrosExtensionInclude 'com.github.ninia:jep:v4.0.3'
+	implementation 'com.github.ninia:jep:v4.1.0'
+	jsmacrosExtensionInclude 'com.github.ninia:jep:v4.1.0'
 
 	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
 	testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'

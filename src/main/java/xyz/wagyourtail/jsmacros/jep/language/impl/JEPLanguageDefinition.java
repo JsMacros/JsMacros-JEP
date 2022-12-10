@@ -1,26 +1,18 @@
 package xyz.wagyourtail.jsmacros.jep.language.impl;
 
 import jep.JepConfig;
-import jep.JepException;
 import jep.SubInterpreter;
 import xyz.wagyourtail.jsmacros.core.Core;
 import xyz.wagyourtail.jsmacros.core.config.ScriptTrigger;
 import xyz.wagyourtail.jsmacros.core.event.BaseEvent;
 import xyz.wagyourtail.jsmacros.core.extensions.Extension;
 import xyz.wagyourtail.jsmacros.core.language.BaseLanguage;
-import xyz.wagyourtail.jsmacros.core.language.BaseScriptContext;
-import xyz.wagyourtail.jsmacros.core.language.BaseWrappedException;
 import xyz.wagyourtail.jsmacros.core.language.EventContainer;
 import xyz.wagyourtail.jsmacros.core.library.BaseLibrary;
 import xyz.wagyourtail.jsmacros.jep.config.JEPConfig;
 
 import java.io.File;
-import java.util.Arrays;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 public class JEPLanguageDefinition extends BaseLanguage<SubInterpreter, JEPScriptContext> {
     public JEPLanguageDefinition(Extension extension, Core runner) {
@@ -36,12 +28,32 @@ public class JEPLanguageDefinition extends BaseLanguage<SubInterpreter, JEPScrip
             ctx.setContext(interp);
             
             for (Map.Entry<String, BaseLibrary> lib : retrieveLibs(ctx).entrySet()) interp.set(lib.getKey(), lib.getValue());
-
             try {
                 exec.accept(interp);
             } finally {
-                ctx.leave();
-                ctx.tasks.poll().release();
+                ctx.tasks.poll();
+                ctx.unbindThread(Thread.currentThread());
+                EventContainer<?> cc = ctx.getBoundEvents().get(Thread.currentThread());
+                if (cc != null) {
+                    cc.releaseLock();
+                }
+
+                ctx.clearSyncObject();
+                if (!ctx.hasMethodWrapperBeenInvoked) {
+                    ctx.closeContext();
+                }
+            }
+
+            VirtualThread joinable;
+            while (!ctx.isContextClosed()) {
+                joinable = ctx.tasks.peekWaiting(1000);
+                if (joinable == null) {
+//                    System.out.println("timed out");
+                    continue;
+                }
+//                System.out.println("reEntrantTaskQueuer: joining " + joinable);
+                joinable.thread.run();
+                ctx.tasks.poll();
             }
     }
     

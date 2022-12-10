@@ -73,7 +73,7 @@ public class FWrapper extends PerExecLanguageLibrary<SubInterpreter, JEPScriptCo
             Thread overrideThread = new Thread() {
                 @Override
                 public void interrupt() {
-                    Thread.currentThread().interrupt();
+                    ctx.getMainThread().interrupt();
                 }
             };
 

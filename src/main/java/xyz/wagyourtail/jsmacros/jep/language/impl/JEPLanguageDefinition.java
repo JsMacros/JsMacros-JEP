@@ -32,7 +32,6 @@ public class JEPLanguageDefinition extends BaseLanguage<SubInterpreter, JEPScrip
                 exec.accept(interp);
             } finally {
                 ctx.tasks.poll();
-                ctx.unbindThread(Thread.currentThread());
                 EventContainer<?> cc = ctx.getBoundEvents().get(Thread.currentThread());
                 if (cc != null) {
                     cc.releaseLock();

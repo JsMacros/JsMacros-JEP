@@ -104,6 +104,7 @@ public class FWrapper extends PerExecLanguageLibrary<SubInterpreter, JEPScriptCo
 
         private void inner_apply(RunnableEx accepted) {
             Semaphore sem = new Semaphore(0);
+            ctx.bindThread(Thread.currentThread());
             try {
                 inner_accept(() -> {
                     accepted.run();
@@ -112,6 +113,10 @@ public class FWrapper extends PerExecLanguageLibrary<SubInterpreter, JEPScriptCo
                 sem.acquire();
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
+            } finally {
+                ctx.releaseBoundEventIfPresent(Thread.currentThread());
+                Core.getInstance().profile.joinedThreadStack.remove(Thread.currentThread());
+                ctx.unbindThread(Thread.currentThread());
             }
         }
 
